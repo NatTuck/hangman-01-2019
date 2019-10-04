@@ -3,13 +3,14 @@ defmodule HangmanWeb.GamesChannel do
 
   alias Hangman.Game
   alias Hangman.BackupAgent
+  alias Hangman.GameServer
 
   def join("games:" <> name, payload, socket) do
     if authorized?(payload) do
-      game = BackupAgent.get(name) || Game.new()
+      GameServer.start(name)
+      game = GameServer.peek(name)
       BackupAgent.put(name, game)
       socket = socket
-      |> assign(:game, game)
       |> assign(:name, name)
       {:ok, %{"join" => name, "game" => Game.client_view(game)}, socket}
     else
@@ -19,9 +20,8 @@ defmodule HangmanWeb.GamesChannel do
 
   def handle_in("guess", %{"letter" => ll}, socket) do
     name = socket.assigns[:name]
-    game = Game.guess(socket.assigns[:game], ll)
-    socket = assign(socket, :game, game)
-    BackupAgent.put(name, game)
+    game = GameServer.guess(name, ll)
+    broadcast!(socket, "update", %{ "game" => Game.client_view(game) })
     {:reply, {:ok, %{ "game" => Game.client_view(game)}}, socket}
   end
 
